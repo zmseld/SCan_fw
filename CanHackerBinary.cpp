@@ -521,11 +521,11 @@ bool CanHackerBinary::canSend()
 	if (ch1 || ch2)
 	{
 		// ExtId = 0x01; rtr = 0x02; CAN-FD = 0x04; CAN-FD rate switch = 0x08; CAN-FD error status = 0x10; Block TX = 0x30000000
-		//const uint32_t flags = cmd.Data2dw(0);
-		// what it means? "Следует учесть, что если для CAN шины в message.flags не выставить флаг FLAG_MESSAGE_BLOCK_TX, то устройство
-		// после отправки сообщения в шину вернёт его с соответствующим флагом."
+		const uint32_t flags = cmd.Data2dw(0);
 		Can::Pkt pkt;
 		pkt.id = cmd.Data2dw(1);
+		pkt.is_ext = (flags & 0x01) != 0;
+		pkt.is_rtr = (flags & 0x02) != 0;
 
 		pkt.data_len = cmd.Data2(8);
 		if (pkt.data_len > std::size(pkt.data) ||
@@ -636,8 +636,7 @@ bool CanHackerBinary::processPackets()
 
 			uint8_t channel = ((ch == 0) ? cmd.maskCh1 : cmd.maskCh2);
 
-			bool extId = pkt.id > 0x7ff;
-			uint32_t flags = 0x1000'0000 | (extId ? 0x01 : 0x00);
+			uint32_t flags = 0x1000'0000 | (pkt.is_ext ? 0x01 : 0x00) | (pkt.is_rtr ? 0x02 : 0x00);
 
 			convertAndSend(channel, flags, pkt);
 		}
@@ -690,10 +689,16 @@ bool CanHackerBinary::checkLicense()
 	// >> 0f 0f 00 08 85 df c0 b7 94 18 42 35
 	if (cmd.DataLen1() != 16) return false;
 
+	const uint32_t* activeKey = CHLicense::key36;
+	if (cmd.Channel() == 17) activeKey = CHLicense::key17;
+	else if (cmd.Channel() == 20) activeKey = CHLicense::key20;
+	else if (cmd.Channel() == 36) activeKey = CHLicense::key36;
+	else if (cmd.Channel() == 255) activeKey = CHLicense::key255;
+
 	uint8_t sessionKey[16];
 	for (int i = 0; i < 16; i++)
 		sessionKey[i] = cmd.Data1(i);
-	CHLicense::Decrypt(CHLicense::key17, sessionKey, 16);
+	CHLicense::Decrypt(activeKey, sessionKey, 16);
 
 	uint8_t answer[8];
 	memcpy(answer, deviceSerial, sizeof(answer));

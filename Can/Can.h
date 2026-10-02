@@ -16,11 +16,13 @@ public:
 		uint32_t	id {};
 		uint8_t		data[8] {};
 		uint8_t		data_len {};
+		bool		is_ext {false};
+		bool		is_rtr {false};
 
 		Pkt()	{ }
 
-		Pkt (uint32_t pkt_id):
-			id(pkt_id) { }
+		Pkt (uint32_t pkt_id, bool ext = false, bool rtr = false):
+			id(pkt_id), is_ext(ext), is_rtr(rtr) { }
 
 		// принимает строку, заполняет данные пакета. Неуказанные данные заполняются нулями
 		template <int N>

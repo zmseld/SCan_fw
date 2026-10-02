@@ -240,10 +240,12 @@ uint32_t CanDrv::send (Can::Channel channel, const Can::Pkt &pkt)
 
 	// fill id, turn on transmit
 	uint32_t id = pkt.id;
-	if (id >= 0x800)		// exteneded id
+	if (pkt.is_ext || id >= 0x800)		// extended id
 		id = (id << 3) | CAN_TI0R_IDE;
-	else					// standard id
+	else								// standard id
 		id = (id << 21);
+	if (pkt.is_rtr)
+		id |= CAN_TI0R_RTR;
 	tx->TIR = id | CAN_TI0R_TXRQ;
 
 	return 0;
@@ -264,11 +266,15 @@ Can::Pkt CanDrv::rcvIrq(Can::Channel channel)
 		return pkt;
 	}
 
-	pkt.id = rx->RIR;
-	if (pkt.id & CAN_RI0R_IDE)	// extended ID
-		pkt.id = pkt.id >> 3;
-	else						// standard ID
-		pkt.id = pkt.id >> 21;
+	pkt.is_rtr = (rx->RIR & CAN_RI0R_RTR) != 0;
+	if (rx->RIR & CAN_RI0R_IDE)	{ // extended ID
+		pkt.id = rx->RIR >> 3;
+		pkt.is_ext = true;
+	}
+	else {						// standard ID
+		pkt.id = rx->RIR >> 21;
+		pkt.is_ext = false;
+	}
 	__UNALIGNED_UINT32_WRITE(&pkt.data[0], rx->RDLR);
 	__UNALIGNED_UINT32_WRITE(&pkt.data[4], rx->RDHR);
 	pkt.data_len = rx->RDTR & 0x0F;
